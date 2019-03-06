@@ -1,0 +1,24 @@
+{
+  "name": "testing-hooks",
+  "version": "1.0.0",
+  "description": "Testing GitHub webhooks and stuff.",
+  "main": "index.js",
+  "dependencies": {
+    "@octokit/rest": "^16.16.4",
+    "json-stringify": "^1.0.0"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bdelacretaz/testing-hooks.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bdelacretaz/testing-hooks/issues"
+  },
+  "homepage": "https://github.com/bdelacretaz/testing-hooks#readme"
+}
