@@ -1,3 +1,4 @@
+---
 title=Some Markdown Example
 tags=example,markdown,demo
 ----
