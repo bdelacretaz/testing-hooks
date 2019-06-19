@@ -28,11 +28,12 @@ const processFrontMatter = (tags, path, data) => {
     }
     tags[tag].push(path);
   });
+  console.log(`tags for ${path} = ${JSON.stringify(tags, null, 2)}`);
 };
 
-const processItem = (tags, item) => {
+const processItem = async (tags, item) => {
   if(item.type == 'blob' && item.path.endsWith('.md')) {
-    octokit.repos.getContents({
+    await octokit.repos.getContents({
       owner: branchDef.owner,
       repo: branchDef.repo,
       path: item.path,
@@ -41,46 +42,48 @@ const processItem = (tags, item) => {
       const content = Buffer.from(response.data.content, 'base64').toString();
       return content;
     })
-    .then(content => {
-      md.use(fmPlugin, data => processFrontMatter(tags, item.path, data));
-      md.parse(content);
-      return tags;
-    })
-    .then(tags => {
-      console.log(tags);
+    .then(async content => {
+      md.use(fmPlugin, result => processFrontMatter(tags, item.path, result));
+      await md.parse(content);
     });
   }
 };
 
 const main = async (params) => {
+  // TODO this doesn't seem to help with rate limitation, and
+  // an invalid token produces no error
   octokit = new Octokit ({auth: params.githubSecret});
-  const response = await octokit.repos.getBranch(params.branchDef);
-  const branchURL = response.data._links.self;
-  const sha = response.data.commit.sha;
 
-  console.log(`Getting tree from ${branchURL}, sha=${sha}`);
-
-  octokit.git.getTree({
-    owner: branchDef.owner,
-    repo: branchDef.repo,
-    tree_sha: sha,
-    recursive: 1,
-  })
+  octokit.repos.getBranch(params.branchDef)
   .then(response => {
+    const branchURL = response.data._links.self;
+    const sha = response.data.commit.sha;
+    console.log(`Getting tree from ${branchURL}, sha=${sha}`);
+    return sha;
+  })
+  .then(sha => {
+    return octokit.git.getTree({
+      owner: branchDef.owner,
+      repo: branchDef.repo,
+      tree_sha: sha,
+      recursive: 1,
+    })
+  })
+  .then(async response => {
     const tags = {};
     if(response.data.truncated) {
       throw new Error("For now, unable to handle truncated responses - need to implement paging");
     }
-    response.data.tree.forEach(item => {
-      processItem(tags, item);
-    })
-
+    await Promise.all(response.data.tree.map(item => processItem(tags, item)));
     return tags;
-  })
+    })
   .then(tags => {
+    console.log('Final tags:');
     console.log(tags);
-  })
-  .catch(e => { console.log(e); });
+  })  
+  .catch(e => { 
+    console.log(e); 
+  });
 }
 
 if (require.main === module) {
