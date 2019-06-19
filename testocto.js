@@ -7,13 +7,28 @@
 
 const stringify = require('json-stringify');
 const Octokit = require('@octokit/rest')
-const octokit = new Octokit ()
+let octokit;
+const md = require('markdown-it')();
+const fmPlugin = require('markdown-it-front-matter');
+const fmParser = require('front-matter');
 
 const branchDef = {
   owner: 'bdelacretaz',
   repo: 'testing-hooks',
   branch: 'master',
 }
+
+const processFrontMatter = (tags, path, data) => {
+  var frontMatter = fmParser(`---\n${data}\n---`);
+  frontMatter.attributes.tags.split(',').forEach(rawTag =>{
+    const tag = rawTag.replace(/\s+/g,'');
+    // TODO how to synchronize access to tag[tag] ?
+    if(!tags[tag]) {
+      tags[tag] = [];
+    }
+    tags[tag].push(path);
+  });
+};
 
 const processItem = (tags, item) => {
   if(item.type == 'blob' && item.path.endsWith('.md')) {
@@ -24,14 +39,22 @@ const processItem = (tags, item) => {
     })
     .then(response => {
       const content = Buffer.from(response.data.content, 'base64').toString();
-      console.log(content.substr(0,80));      
-      tags[item.path] = 1;
+      return content;
     })
+    .then(content => {
+      md.use(fmPlugin, data => processFrontMatter(tags, item.path, data));
+      md.parse(content);
+      return tags;
+    })
+    .then(tags => {
+      console.log(tags);
+    });
   }
 };
 
-const main = async (branch) => {
-  const response = await octokit.repos.getBranch(branch);
+const main = async (params) => {
+  octokit = new Octokit ({auth: params.githubSecret});
+  const response = await octokit.repos.getBranch(params.branchDef);
   const branchURL = response.data._links.self;
   const sha = response.data.commit.sha;
 
@@ -60,4 +83,11 @@ const main = async (branch) => {
   .catch(e => { console.log(e); });
 }
 
-main(branchDef);
+if (require.main === module) {
+  main({
+    githubSecret: process.argv[2],
+    branchDef: branchDef,
+  });
+}
+
+module.exports.main = main;

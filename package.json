@@ -5,7 +5,10 @@
   "main": "index.js",
   "dependencies": {
     "@octokit/rest": "^16.16.4",
-    "json-stringify": "^1.0.0"
+    "front-matter": "^3.0.2",
+    "json-stringify": "^1.0.0",
+    "markdown-it": "^8.4.2",
+    "markdown-it-front-matter": "^0.1.2"
   },
   "devDependencies": {},
   "scripts": {
