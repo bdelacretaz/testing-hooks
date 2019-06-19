@@ -8,7 +8,7 @@
 const stringify = require('json-stringify');
 const Octokit = require('@octokit/rest')
 let octokit;
-const md = require('markdown-it')();
+const Markdown = require('markdown-it');
 const fmPlugin = require('markdown-it-front-matter');
 const fmParser = require('front-matter');
 
@@ -28,7 +28,6 @@ const processFrontMatter = (tags, path, data) => {
     }
     tags[tag].push(path);
   });
-  console.log(`tags for ${path} = ${JSON.stringify(tags, null, 2)}`);
 };
 
 const processItem = async (tags, item) => {
@@ -43,6 +42,7 @@ const processItem = async (tags, item) => {
       return content;
     })
     .then(async content => {
+      const md = new Markdown();
       md.use(fmPlugin, result => processFrontMatter(tags, item.path, result));
       await md.parse(content);
     });
@@ -54,33 +54,34 @@ const main = async (params) => {
   // an invalid token produces no error
   octokit = new Octokit ({auth: params.githubSecret});
 
+  const result = {
+    description: 'List of front matter tags found in the specified GitHub source',
+    source: {},
+    tags: {},
+  };
+
   octokit.repos.getBranch(params.branchDef)
   .then(response => {
-    const branchURL = response.data._links.self;
-    const sha = response.data.commit.sha;
-    console.log(`Getting tree from ${branchURL}, sha=${sha}`);
-    return sha;
+    result.source.branchURL = response.data._links.self;
+    result.source.sha = response.data.commit.sha;
+    return result;
   })
-  .then(sha => {
+  .then(result => {
     return octokit.git.getTree({
       owner: branchDef.owner,
       repo: branchDef.repo,
-      tree_sha: sha,
+      tree_sha: result.source.sha,
       recursive: 1,
     })
   })
   .then(async response => {
-    const tags = {};
     if(response.data.truncated) {
       throw new Error("For now, unable to handle truncated responses - need to implement paging");
     }
-    await Promise.all(response.data.tree.map(item => processItem(tags, item)));
-    return tags;
+    await Promise.all(response.data.tree.map(item => processItem(result.tags, item)));
+    result.creationDate = new Date();
+    console.log(result);
     })
-  .then(tags => {
-    console.log('Final tags:');
-    console.log(tags);
-  })  
   .catch(e => { 
     console.log(e); 
   });
