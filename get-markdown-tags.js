@@ -29,7 +29,10 @@ const settings = {
 }
 
 const processFrontMatter = (tags, path, data) => {
-  var frontMatter = fmParser(`---\n${data}\n---`);
+  const frontMatter = fmParser(`---\n${data}\n---`);
+  if(!frontMatter.attributes || !frontMatter.attributes.tags) {
+    return;
+  }
   frontMatter.attributes.tags.split(',').forEach(rawTag =>{
     const tag = rawTag.replace(/\s+/g,'');
     // TODO how to synchronize access to tag[tag] ?
@@ -54,7 +57,11 @@ const processItem = async (tags, item) => {
     .then(async content => {
       const md = new Markdown();
       md.use(fmPlugin, result => processFrontMatter(tags, item.path, result));
-      await md.parse(content);
+      try {
+        await md.parse(content);
+      } catch(e) {
+        console.log(e);
+      }
     });
   }
 };
