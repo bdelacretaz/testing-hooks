@@ -1,21 +1,31 @@
-// Enumerate a Git tree and extract tags from the
-// front matter or MarkDown files
+// Computes a map of front matter tags to paths for an 
+// input GitHub repository and stores the result in 
+// another one.
 //
-// TODO we're likely to hit GitHub API rate limits,
-// the current values are provided as X-RateLimit-*
-// response headers
+// GitHub API rate limits might be an issue, but they
+// are much higher with authenticated requests (which we
+// are using) than anonymous ones.
+// The current limits are provided as X-RateLimit-*
+// response headers.
 
 const stringify = require('json-stringify');
-const Octokit = require('@octokit/rest')
+const Octokit = require('@octokit/rest');
 let octokit;
 const Markdown = require('markdown-it');
 const fmPlugin = require('markdown-it-front-matter');
 const fmParser = require('front-matter');
 
-const branchDef = {
-  owner: 'bdelacretaz',
-  repo: 'testing-hooks',
-  branch: 'master',
+const settings = {
+  moduleName: 'get-markdown-tags',
+  input: {
+    owner: 'bdelacretaz',
+    repo: 'testing-hooks',
+    branch: 'master',
+  },
+  output: {
+    owner: 'bdelacretaz',
+    repo: 'scratch',
+  }
 }
 
 const processFrontMatter = (tags, path, data) => {
@@ -33,8 +43,8 @@ const processFrontMatter = (tags, path, data) => {
 const processItem = async (tags, item) => {
   if(item.type == 'blob' && item.path.endsWith('.md')) {
     await octokit.repos.getContents({
-      owner: branchDef.owner,
-      repo: branchDef.repo,
+      owner: settings.input.owner,
+      repo: settings.input.repo,
       path: item.path,
     })
     .then(response => {
@@ -50,17 +60,36 @@ const processItem = async (tags, item) => {
 };
 
 const main = async (params) => {
-  // TODO this doesn't seem to help with rate limitation, and
-  // an invalid token produces no error
-  octokit = new Octokit ({auth: params.githubSecret});
+  const { githubSecret } = params;
+  if(!githubSecret) {
+    throw new Error("Missing githubSecret");
+  }
+  const opts = { 
+    auth: `token ${githubSecret}`,
+    userAgent: settings.moduleName,
+    /*
+    log: {
+      debug: console.debug,
+      info: console.info,
+      warn: console.warn,
+      error: console.error,
+    },
+    */
+  };
+  octokit = Octokit(opts);
+
+  // Verify that we are authenticated
+  const { data:userData } = await octokit.users.getAuthenticated();
 
   const result = {
     description: 'List of front matter tags found in the specified GitHub source',
-    source: {},
+    source: {
+      octokitUser: userData.login,
+    },
     tags: {},
   };
 
-  octokit.repos.getBranch(params.branchDef)
+  octokit.repos.getBranch(params.settings.input)
   .then(response => {
     result.source.branchURL = response.data._links.self;
     result.source.sha = response.data.commit.sha;
@@ -68,8 +97,8 @@ const main = async (params) => {
   })
   .then(result => {
     return octokit.git.getTree({
-      owner: branchDef.owner,
-      repo: branchDef.repo,
+      owner: settings.input.owner,
+      repo: settings.input.repo,
       tree_sha: result.source.sha,
       recursive: 1,
     })
@@ -81,7 +110,20 @@ const main = async (params) => {
     await Promise.all(response.data.tree.map(item => processItem(result.tags, item)));
     result.creationDate = new Date();
     console.log(result);
+    return result;
     })
+  .then(async tags => {
+    const param = {
+      owner: settings.output.owner,
+      repo: settings.output.repo,
+      path: `${settings.moduleName}-${settings.input.owner}-${settings.input.repo}-tags.json`,
+      message: `Tags updated by ${settings.moduleName}`,
+      content: Buffer.from(JSON.stringify(tags, null, 2)).toString('base64'),
+      // sha: 'TODO needed to update a file, get the old sha first'
+    };
+    await octokit.repos.createFile(param);
+    console.log(`Result stored to ${param.owner}/${param.repo}/${param.path}`);
+  })
   .catch(e => { 
     console.log(e); 
   });
@@ -90,7 +132,7 @@ const main = async (params) => {
 if (require.main === module) {
   main({
     githubSecret: process.argv[2],
-    branchDef: branchDef,
+    settings: settings,
   });
 }
 
