@@ -38,7 +38,6 @@ const processFrontMatter = (tags, path, data) => {
   }
   frontMatter.attributes.tags.split(',').forEach(rawTag =>{
     const tag = rawTag.replace(/\s+/g,'');
-    // TODO how to synchronize access to tag[tag] ?
     if(!tags[tag]) {
       tags[tag] = [];
     }
