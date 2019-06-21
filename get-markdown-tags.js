@@ -123,13 +123,20 @@ const main = async (params) => {
     const param = {
       owner: settings.output.owner,
       repo: settings.output.repo,
-      path: `${settings.moduleName}-${settings.input.owner}-${settings.input.repo}-tags.json`,
-      message: `Tags updated by ${settings.moduleName}`,
+      path: `tags-${settings.input.owner}-${settings.input.repo}.json`,
+      message: `Tags file created by ${settings.moduleName}`,
       content: Buffer.from(JSON.stringify(tags, null, 2)).toString('base64'),
-      // sha: 'TODO needed to update a file, get the old sha first'
     };
+    try {
+      // Need the file's sha if it exists already
+      const { data:existingContent } = await octokit.repos.getContents(param);
+      param.sha = existingContent.sha;
+      param.message = `Tags file updated by ${settings.moduleName}`;
+    } catch(ignore) {
+      // happens if the file doesn't exist yet
+    }
     await octokit.repos.createFile(param);
-    console.log(`Result stored to ${param.owner}/${param.repo}/${param.path}`);
+    console.log(`Result stored at ${param.owner}/${param.repo}/${param.path}`);
   })
   .catch(e => { 
     console.log(e); 
