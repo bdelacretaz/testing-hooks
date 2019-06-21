@@ -2,6 +2,9 @@
 // input GitHub repository and stores the result in 
 // another one.
 //
+// See https://github.com/bdelacretaz/scratch for
+// example output.
+//
 // GitHub API rate limits might be an issue, but they
 // are much higher with authenticated requests (which we
 // are using) than anonymous ones.
